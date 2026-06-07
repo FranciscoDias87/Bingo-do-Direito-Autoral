@@ -1,0 +1,6 @@
+{
+  "name": "Bingo UI/UX - Direito Autoral",
+  "description": "Bingo digital interativo para sala de aula sobre propriedade intelectual e direito autoral no design de interfaces.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
