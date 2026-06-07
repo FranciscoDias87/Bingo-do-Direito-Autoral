@@ -178,7 +178,18 @@ export default function CardGrid({
               </div>
             </div>
 
-            <form onSubmit={generateNewCard} className="space-y-5 pt-2">
+            {/* School classroom mobile device policy notice */}
+            <div className="bg-indigo-950/40 border border-white/10 rounded-2xl p-4 flex items-start gap-3 text-left">
+              <AlertCircle className="w-5 h-5 text-indigo-300 flex-shrink-0 mt-0.5 animate-pulse" />
+              <div className="space-y-1">
+                <span className="text-[10px] font-black text-indigo-300 uppercase tracking-widest font-mono">📱 Restrição de Celular em Sala</span>
+                <p className="text-indigo-200/80 text-xs leading-relaxed">
+                  Não possui ou não pode usar celular na sala de aula? Sem problemas! O professor pode criar e **imprimir cartelas em lote offline** para jogar em papel pelo Modo Professor.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={generateNewCard} className="space-y-5 pt-1">
               {/* Name field */}
               <div className="space-y-1.5">
                 <label className="text-xs font-black text-white/80 uppercase tracking-widest block font-mono">Nome do Aluno</label>

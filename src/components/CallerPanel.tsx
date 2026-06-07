@@ -11,7 +11,10 @@ import {
   Layers,
   HelpCircle,
   Eye,
-  Award
+  Award,
+  LogOut,
+  Printer,
+  BookOpen
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -23,6 +26,7 @@ interface CallerPanelProps {
   onResetGame: () => void;
   onVerifyCard: (cardId: string) => void;
   isGameFinished: boolean;
+  onLogout?: () => void;
 }
 
 export default function CallerPanel({
@@ -32,10 +36,47 @@ export default function CallerPanel({
   onDrawTerm,
   onResetGame,
   onVerifyCard,
-  isGameFinished
+  isGameFinished,
+  onLogout
 }: CallerPanelProps) {
   const [speakOn, setSpeakOn] = useState(false);
   const [selectedReviewCard, setSelectedReviewCard] = useState<BingoCard | null>(null);
+
+  // States for batch printing cards in classrooms without cellphones
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printCardCount, setPrintCardCount] = useState(20);
+  const [printCardDimension, setPrintCardDimension] = useState(3);
+  const [generatedPrintCards, setGeneratedPrintCards] = useState<BingoCard[]>([]);
+
+  const handleGeneratePrintCards = () => {
+    const cards: BingoCard[] = [];
+    for (let i = 0; i < printCardCount; i++) {
+      const shuffled = [...allTerms].sort(() => Math.random() - 0.5);
+      const totalNeeded = printCardDimension * printCardDimension;
+      const selectedTerms = shuffled.slice(0, totalNeeded);
+      
+      const grid: any[][] = [];
+      for (let r = 0; r < printCardDimension; r++) {
+        const row = [];
+        for (let c = 0; c < printCardDimension; c++) {
+          row.push({
+            term: selectedTerms[r * printCardDimension + c].term,
+            marked: false,
+            called: false
+          });
+        }
+        grid.push(row);
+      }
+
+      cards.push({
+        id: `offline-${printCardDimension}x${printCardDimension}-${101 + i}`,
+        ownerName: `Folha #${i + 1}`,
+        grid,
+        dimension: printCardDimension
+      });
+    }
+    setGeneratedPrintCards(cards);
+  };
 
   const currentDrawn = drawnTerms.length > 0 ? drawnTerms[drawnTerms.length - 1] : null;
   const remainingCount = allTerms.length - drawnTerms.length;
@@ -124,7 +165,20 @@ export default function CallerPanel({
             <span className="text-xs font-black font-mono text-emerald-300 tracking-widest uppercase">PAINEL DE SORTEIO</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              id="btn-open-print-modal"
+              onClick={() => {
+                setShowPrintModal(true);
+                setGeneratedPrintCards([]);
+              }}
+              className="px-3 py-2 rounded-xl border border-indigo-400/30 bg-indigo-550/20 text-indigo-200 hover:bg-indigo-500 hover:text-white transition duration-150 font-bold text-xs flex items-center gap-2 uppercase tracking-wide cursor-pointer"
+              title="Gerar cartelas em lote para sala sem celular"
+            >
+              <Printer className="w-3.5 h-3.5 animate-bounce text-indigo-300" />
+              <span>Gerar p/ Impressão 🖨️</span>
+            </button>
+
             <button
               id="btn-toggle-audio"
               onClick={() => {
@@ -133,7 +187,7 @@ export default function CallerPanel({
                   speakDefinition(currentDrawn.term, currentDrawn.description);
                 }
               }}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition duration-150 border uppercase ${
+              className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition duration-150 border uppercase ${
                 speakOn 
                   ? "bg-indigo-600/40 border-indigo-400 text-indigo-100" 
                   : "bg-white/10 border-white/15 text-white/90 hover:bg-white/20 hover:text-white"
@@ -147,11 +201,23 @@ export default function CallerPanel({
             <button
               id="btn-reset-game-prop"
               onClick={onResetGame}
-              className="px-3.5 py-2 rounded-xl border border-red-500/25 bg-red-950/30 text-red-200 hover:bg-red-900/40 hover:text-white transition duration-150 font-bold text-xs flex items-center gap-2 uppercase tracking-wide"
+              className="px-3 py-2 rounded-xl border border-red-500/25 bg-red-950/30 text-red-200 hover:bg-red-900/40 hover:text-white transition duration-150 font-bold text-xs flex items-center gap-2 uppercase tracking-wide cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               Reiniciar
             </button>
+
+            {onLogout && (
+              <button
+                id="btn-teacher-logout-panel"
+                onClick={onLogout}
+                className="px-3 py-2 rounded-xl border border-white/10 bg-white/5 text-white hover:bg-red-500/30 hover:border-red-500/20 duration-150 font-bold text-xs flex items-center gap-1.5 uppercase cursor-pointer"
+                title="Sair do painel e bloquear acesso"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Sair</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -439,6 +505,263 @@ export default function CallerPanel({
                 >
                   Validar Vencedor
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Batch Cards Print Modal for Classrooms without cell phones */}
+      <AnimatePresence>
+        {showPrintModal && (
+          <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-slate-900 border border-white/20 text-white rounded-3xl w-full max-w-3xl flex flex-col max-h-[92vh] overflow-hidden shadow-2xl relative"
+            >
+              {/* Modal header (HIDDEN DURING PRINT) */}
+              <div className="p-5 border-b border-white/15 flex items-center justify-between bg-white/5 no-print">
+                <div className="flex items-center gap-2.5">
+                  <Printer className="text-indigo-400 w-5 h-5 animate-pulse" />
+                  <div>
+                    <h3 className="font-extrabold text-white text-sm">Gerador e Impressor de Cartelas em Lote</h3>
+                    <p className="text-[10px] text-indigo-200/60 font-mono uppercase tracking-wider">Para salas com restrição de celular</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowPrintModal(false)}
+                  className="text-white hover:bg-white/10 text-xs font-bold px-3.5 py-2 rounded-xl border border-white/10 duration-150 uppercase"
+                >
+                  Fechar
+                </button>
+              </div>
+
+              {/* Modal content body */}
+              <div className="p-6 overflow-y-auto space-y-6 flex-1 custom-scrollbar">
+                
+                {/* Options panel (HIDDEN DURING PRINT) */}
+                <div className="bg-white/5 p-5 rounded-2xl border border-white/10 space-y-4 no-print">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-indigo-300 font-mono">Configurar Impressão de Cartelas</h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-white/80">Quantidade de Alunos (Cartelas):</label>
+                      <select
+                        value={printCardCount}
+                        onChange={(e) => setPrintCardCount(Number(e.target.value))}
+                        className="w-full bg-white/10 border border-white/15 pr-8 pl-3 py-2.5 rounded-xl font-bold focus:ring-2 focus:ring-indigo-500/50 outline-hidden text-white"
+                      >
+                        <option value={5} className="bg-slate-900">5 Cartelas</option>
+                        <option value={10} className="bg-slate-900">10 Cartelas</option>
+                        <option value={15} className="bg-slate-900">15 Cartelas</option>
+                        <option value={20} className="bg-slate-900">20 Cartelas</option>
+                        <option value={30} className="bg-slate-900">30 Cartelas</option>
+                        <option value={40} className="bg-slate-900">40 Cartelas</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-white/80">Dimensão da Cartela:</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setPrintCardDimension(3)}
+                          className={`py-2 rounded-xl border font-bold text-xs transition ${
+                            printCardDimension === 3 ? "bg-white text-indigo-950 border-white" : "bg-white/5 hover:bg-white/10 border-white/10"
+                          }`}
+                        >
+                          3x3 (Rápido)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPrintCardDimension(4)}
+                          className={`py-2 rounded-xl border font-bold text-xs transition ${
+                            printCardDimension === 4 ? "bg-white text-indigo-950 border-white" : "bg-white/5 hover:bg-white/10 border-white/10"
+                          }`}
+                        >
+                          4x4 (Avançado)
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      onClick={handleGeneratePrintCards}
+                      className="w-full bg-indigo-600 hover:bg-indigo-505 text-white font-black py-3 rounded-xl transition duration-150 text-xs uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Sparkles className="w-4 h-4 text-pink-200 fill-pink-200" />
+                      Gerar {printCardCount} Combinatórias de Cartela
+                    </button>
+                  </div>
+                </div>
+
+                {/* Print area wrapper */}
+                <div id="print-preview-container" className="space-y-6">
+                  {/* Print custom stylesheet injection */}
+                  <style dangerouslySetInnerHTML={{ __html: `
+                    @media print {
+                      body, html {
+                        background: white !important;
+                        color: black !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                      }
+                      header, nav, footer, button, .no-print {
+                        display: none !important;
+                        height: 0 !important;
+                        overflow: hidden !important;
+                        opacity: 0 !important;
+                      }
+                      #print-preview-container {
+                        position: absolute;
+                        left: 0;
+                        top: 0;
+                        width: 100% !important;
+                        background: white !important;
+                        color: black !important;
+                        padding: 10px !important;
+                        margin: 0 !important;
+                      }
+                      .print-card-box {
+                        page-break-inside: avoid !important;
+                        break-inside: avoid !important;
+                        border: 2px solid #000000 !important;
+                        border-radius: 12px !important;
+                        padding: 15px !important;
+                        margin-bottom: 30px !important;
+                        background: white !important;
+                        color: black !important;
+                        font-family: sans-serif !important;
+                        box-shadow: none !important;
+                      }
+                      .print-grid-cell {
+                        border: 1px solid #000000 !important;
+                        background: white !important;
+                        color: black !important;
+                        font-family: sans-serif !important;
+                      }
+                      .print-cell-text {
+                        color: black !important;
+                        font-weight: bold !important;
+                      }
+                      .cut-guide {
+                        border-top: 1px dashed #666666 !important;
+                        margin: 15px 0 !important;
+                      }
+                    }
+                  ` }} />
+
+                  {generatedPrintCards.length === 0 ? (
+                    <div className="py-12 text-center text-white/50 text-xs space-y-3 border-2 border-dashed border-white/10 rounded-2xl no-print">
+                      <HelpCircle className="w-10 h-10 w-full text-indigo-300/40" />
+                      <p>Nenhuma cartela em lote gerada ainda.</p>
+                      <p className="text-[10px] text-white/40 max-w-sm mx-auto leading-relaxed px-4">
+                        Selecione as opções acima e clique em Gerar para produzir a pré-visualização das cartelas diagramadas de Direito Autoral em P&B para impressão.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 px-4.5 py-3 rounded-xl no-print">
+                        <span className="text-xs font-bold font-mono">✅ {generatedPrintCards.length} cartelas geradas com sucesso!</span>
+                        <button
+                          onClick={() => window.print()}
+                          className="px-4.5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-black uppercase rounded-lg shadow-md duration-150 cursor-pointer flex items-center gap-1.5"
+                        >
+                          <Printer className="w-4 h-4" />
+                          Imprimir {generatedPrintCards.length} Cartelas 🖨️
+                        </button>
+                      </div>
+
+                      <div className="space-y-6">
+                        {generatedPrintCards.map((card, idx) => (
+                          <div key={card.id}>
+                            <div className="bg-white text-slate-900 rounded-3xl p-6 border-3 border-double border-slate-600 shadow-xl print-card-box relative overflow-hidden">
+                              <div className="flex justify-between items-center border-b border-dashed border-slate-300 pb-3 mb-4">
+                                <div>
+                                  <span className="text-[10px] font-bold text-indigo-600 font-mono tracking-wider uppercase block">DIREITO AUTORAL • CURSO DE DESENVOLVIMENTO DE SISTEMAS</span>
+                                  <h4 className="text-base font-extrabold text-slate-800">BINGO DE DIREITO AUTORAL • Cartela do Aluno</h4>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-[10px] font-mono text-slate-400 block">ID: {card.dimension}x{card.dimension}</span>
+                                  <span className="text-xs text-indigo-600 font-bold block">Folha #{idx + 1}</span>
+                                </div>
+                              </div>
+
+                              <div className="mb-4">
+                                <div className="border-b border-slate-300 flex items-end pb-1 text-sm font-bold text-slate-800 italic">
+                                  Nome do Aluno: ___________________________________________________________
+                                </div>
+                              </div>
+
+                              <div
+                                className="grid gap-2"
+                                style={{ gridTemplateColumns: `repeat(${card.dimension}, minmax(0, 1fr))` }}
+                              >
+                                {card.grid.map((row, r) =>
+                                  row.map((cell, c) => (
+                                    <div
+                                      key={`${r}-${c}`}
+                                      className="print-grid-cell border border-slate-300 bg-slate-50 aspect-square rounded-xl p-3 flex flex-col justify-between items-center text-center text-slate-850"
+                                    >
+                                      <span className="text-[8px] font-mono text-slate-400 select-none block self-start">R{r+1}C{c+1}</span>
+                                      <span className="print-cell-text text-[10px] md:text-xs font-bold leading-tight break-words py-1 block my-auto text-slate-900">
+                                        {cell.term}
+                                      </span>
+                                      <div className="w-5 h-5 rounded-full border border-dashed border-slate-400 text-[10px] block" />
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+
+                              <div className="mt-4 pt-3 border-t border-dashed border-slate-250 flex justify-between items-center text-[9px] text-slate-400 font-mono">
+                                <span>Código de Verificação: <strong>{card.id.slice(0, 15).toUpperCase()}</strong></span>
+                                <span>Aviso Legal: Não cometa Plágio! Respeite o direito intelectual.</span>
+                              </div>
+                            </div>
+
+                            {/* Scissor cutting line guide dynamically printed */}
+                            {(idx + 1) < generatedPrintCards.length && (idx + 1) % 2 !== 0 && (
+                              <div className="border-t-2 border-dashed border-slate-400/50 my-6 pt-1 flex justify-center items-center gap-2 text-slate-400 text-[10px] uppercase font-mono no-print cut-guide select-none">
+                                <span>✂️ Dobra ou Recorte de Folha (Imprimir Máx: 2 por folha A4) ✂️</span>
+                              </div>
+                            )}
+
+                            {/* Page breaks strictly after every 2 cards */}
+                            {(idx + 1) % 2 === 0 && (idx + 1) < generatedPrintCards.length && (
+                              <div className="hidden print:block" style={{ pageBreakAfter: 'always', breakAfter: 'page' }} />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+
+              </div>
+
+              {/* Modal footer (HIDDEN DURING PRINT) */}
+              <div className="p-5 border-t border-white/10 bg-slate-950 flex justify-end gap-3 no-print">
+                <button
+                  type="button"
+                  onClick={() => setShowPrintModal(false)}
+                  className="px-5 py-3 border border-white/15 hover:bg-white/5 rounded-2xl text-xs font-bold uppercase transition"
+                >
+                  Voltar ao Painel
+                </button>
+                {generatedPrintCards.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="px-6 py-3 bg-white hover:bg-slate-100 text-indigo-950 rounded-2xl text-xs font-black tracking-wider uppercase shadow-xl transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Printer className="w-4 h-4 text-indigo-950" />
+                    Enviar para Impressora 🖨️
+                  </button>
+                )}
               </div>
             </motion.div>
           </div>

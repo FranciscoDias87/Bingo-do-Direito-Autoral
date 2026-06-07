@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, FormEvent } from "react";
 import { BingoCard, DrawnItem, Cell } from "./types";
 import { BINGO_TERMS } from "./data";
 import Instructions from "./components/Instructions";
@@ -14,12 +14,40 @@ import {
   X, 
   Maximize2,
   Award,
-  Crown
+  Crown,
+  Lock,
+  Unlock,
+  KeyRound,
+  Mail,
+  LogOut,
+  ShieldAlert
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<"student" | "teacher" | "study">("study");
+
+  const [isTeacherVerified, setIsTeacherVerified] = useState<boolean>(() => {
+    return localStorage.getItem("bingo_is_teacher_verified") === "true";
+  });
+
+  const handleVerifyTeacher = (email: string, code: string): boolean => {
+    const formattedEmail = email.trim().toLowerCase();
+    const formattedCode = code.trim();
+    if (formattedEmail === "chicodias15@gmail.com" || formattedCode === "direito2026") {
+      setIsTeacherVerified(true);
+      localStorage.setItem("bingo_is_teacher_verified", "true");
+      return true;
+    }
+    return false;
+  };
+
+  const handleTeacherLogout = () => {
+    if (confirm("Deseja mesmo sair do Painel do Professor e bloquear o acesso?")) {
+      setIsTeacherVerified(false);
+      localStorage.removeItem("bingo_is_teacher_verified");
+    }
+  };
 
   // Load drawing history and cards list from localStorage
   const [drawnTerms, setDrawnTerms] = useState<DrawnItem[]>(() => {
@@ -297,9 +325,13 @@ export default function App() {
                 : "text-white/80 hover:text-white hover:bg-white/15"
             }`}
           >
-            <Tv2 className={`w-4 h-4 ${activeTab === "teacher" ? "text-indigo-600" : "text-pink-200"}`} />
-            <span className="hidden sm:inline">3. Modo Professor (Sorteio)</span>
-            <span className="sm:hidden">3. Professor</span>
+            {isTeacherVerified ? (
+              <Tv2 className={`w-4 h-4 ${activeTab === "teacher" ? "text-indigo-600" : "text-pink-200"}`} />
+            ) : (
+              <Lock className={`w-4 h-4 ${activeTab === "teacher" ? "text-red-500" : "text-amber-200 animate-pulse"}`} />
+            )}
+            <span className="hidden sm:inline">3. Modo Professor {isTeacherVerified ? "(Sorteio)" : "🔒"}</span>
+            <span className="sm:hidden">3. Professor {isTeacherVerified ? "" : "🔒"}</span>
           </button>
         </div>
       </nav>
@@ -347,15 +379,20 @@ export default function App() {
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.15 }}
             >
-              <CallerPanel 
-                drawnTerms={drawnTerms}
-                allTerms={BINGO_TERMS}
-                activeCards={activeCards}
-                onDrawTerm={handleDrawTerm}
-                onResetGame={handleResetGame}
-                onVerifyCard={handleVerifyCard}
-                isGameFinished={drawnTerms.length === BINGO_TERMS.length}
-              />
+              {!isTeacherVerified ? (
+                <TeacherLoginGate onVerify={handleVerifyTeacher} />
+              ) : (
+                <CallerPanel 
+                  drawnTerms={drawnTerms}
+                  allTerms={BINGO_TERMS}
+                  activeCards={activeCards}
+                  onDrawTerm={handleDrawTerm}
+                  onResetGame={handleResetGame}
+                  onVerifyCard={handleVerifyCard}
+                  isGameFinished={drawnTerms.length === BINGO_TERMS.length}
+                  onLogout={handleTeacherLogout}
+                />
+              )}
             </motion.div>
           )}
         </AnimatePresence>
@@ -472,6 +509,98 @@ export default function App() {
         © Curso Técnico de Desenvolvimento de Sistemas • Piaui Governo do Estado
       </footer>
 
+    </div>
+  );
+}
+
+function TeacherLoginGate({ onVerify }: { onVerify: (email: string, code: string) => boolean }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    const success = onVerify(email, password);
+    if (!success) {
+      setError("E-mail do professor ou Código da Aula inválido! Tente novamente.");
+    }
+  };
+
+  return (
+    <div className="max-w-md mx-auto text-white mt-4" id="teacher-verification-gate">
+      <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 md:p-8 border border-white/20 shadow-2xl space-y-6 relative overflow-hidden">
+        <div className="absolute -top-10 -right-10 w-36 h-36 bg-pink-500/10 rounded-full blur-2xl pointer-events-none" />
+        
+        <div className="text-center space-y-2">
+          <div className="w-16 h-16 bg-white/10 text-white border border-white/20 rounded-2xl mx-auto flex items-center justify-center shadow-lg">
+            <Lock className="w-8 h-8 text-indigo-300 animate-pulse" />
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-white tracking-tight">Área do Professor</h3>
+            <p className="text-indigo-100/70 text-xs md:text-sm leading-normal max-w-sm mx-auto mt-1">
+              Esta aba possui menus de sorteio e regência reservados ao professor. Identifique-se para liberar o painel.
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+          {error && (
+            <div className="bg-red-500/20 border border-red-500/40 text-red-200 p-3 rounded-xl text-xs flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-black text-white/80 uppercase tracking-widest block font-mono">E-mail do Professor</label>
+            <div className="relative">
+              <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/70" />
+              <input
+                id="input-teacher-email"
+                type="email"
+                required
+                placeholder="Ex: chicodias15@gmail.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-white/10 hover:bg-white/15 border border-white/15 focus:border-white/40 rounded-xl font-bold focus:ring-2 focus:ring-white/10 duration-150 outline-hidden placeholder:text-white/30 text-sm text-white"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-black text-white/80 uppercase tracking-widest block font-mono">Código da Aula</label>
+            <div className="relative">
+              <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/70" />
+              <input
+                id="input-teacher-password"
+                type="password"
+                required
+                placeholder="Ex: direito2026"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-white/10 hover:bg-white/15 border border-white/15 focus:border-white/40 rounded-xl font-bold focus:ring-2 focus:ring-white/10 duration-150 outline-hidden placeholder:text-white/30 text-sm text-white"
+              />
+            </div>
+          </div>
+
+          <button
+            id="btn-teacher-login-submit"
+            type="submit"
+            className="w-full bg-white text-indigo-950 font-black py-4 rounded-xl hover:bg-indigo-50 active:scale-98 transition duration-150 flex items-center justify-center gap-2 text-xs uppercase tracking-wider shadow-2xl cursor-pointer mt-4"
+          >
+            <Unlock className="w-4 h-4 text-indigo-950" />
+            Liberar Painel de Controle
+          </button>
+        </form>
+
+        <div className="bg-indigo-950/40 p-4 rounded-2xl border border-white/10 space-y-1 text-center text-xs text-indigo-200">
+          <p className="leading-relaxed font-semibold">
+            Validação por e-mail (<strong className="text-white">chicodias15@gmail.com</strong>) ou senha de aula (<strong className="text-white">direito2026</strong>).
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
