@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent } from "react";
+import { useState, useEffect, useRef, FormEvent } from "react";
 import { BingoCard, DrawnItem, Cell } from "./types";
 import { BINGO_TERMS } from "./data";
 import Instructions from "./components/Instructions";
@@ -109,7 +109,7 @@ export default function App() {
 
   const [celebrationWinner, setCelebrationWinner] = useState<string | null>(null);
 
-  // Sync state to localStorage
+  // Sync state to localStorage for backup persistence
   useEffect(() => {
     localStorage.setItem("bingo_drawn_terms", JSON.stringify(drawnTerms));
   }, [drawnTerms]);
@@ -118,8 +118,63 @@ export default function App() {
     localStorage.setItem("bingo_active_cards", JSON.stringify(activeCards));
   }, [activeCards]);
 
+  // Keep references updated for the polling loop to prevent stale closures and infinite feedback loops
+  const drawnTermsRef = useRef(drawnTerms);
+  const activeCardsRef = useRef(activeCards);
+  const celebrationWinnerRef = useRef(celebrationWinner);
+
+  useEffect(() => {
+    drawnTermsRef.current = drawnTerms;
+    activeCardsRef.current = activeCards;
+    celebrationWinnerRef.current = celebrationWinner;
+  }, [drawnTerms, activeCards, celebrationWinner]);
+
+  // Multi-device real-time sync polling loop
+  useEffect(() => {
+    let active = true;
+    const fetchGameState = async () => {
+      try {
+        const response = await fetch("/api/game-state");
+        if (!response.ok) return; // Silent fallback to decentralized local storage
+        const data = await response.json();
+        if (data.success && active) {
+          if (data.drawnTerms) {
+            const parsedDrawn = data.drawnTerms.map((item: any) => ({
+              ...item,
+              drawnAt: new Date(item.drawnAt)
+            }));
+            const serialLocal = JSON.stringify(drawnTermsRef.current);
+            const serialRemote = JSON.stringify(parsedDrawn);
+            if (serialLocal !== serialRemote) {
+              setDrawnTerms(parsedDrawn);
+            }
+          }
+          if (data.activeCards) {
+            const serialLocal = JSON.stringify(activeCardsRef.current);
+            const serialRemote = JSON.stringify(data.activeCards);
+            if (serialLocal !== serialRemote) {
+              setActiveCards(data.activeCards);
+            }
+          }
+          if (data.celebrationWinner !== celebrationWinnerRef.current) {
+            setCelebrationWinner(data.celebrationWinner);
+          }
+        }
+      } catch (err) {
+        // Safe silent swallow of network errors (allows completely isolated local-mode)
+      }
+    };
+
+    fetchGameState();
+    const interval = setInterval(fetchGameState, 2000); // Check for server modifications every 2 seconds
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   // Handle single term drawing from remaining pool
-  const handleDrawTerm = () => {
+  const handleDrawTerm = async () => {
     const remainingTerms = BINGO_TERMS.filter(
       termItem => !drawnTerms.some(drawn => drawn.term === termItem.term)
     );
@@ -140,7 +195,19 @@ export default function App() {
       order: drawnTerms.length + 1
     };
 
-    setDrawnTerms([...drawnTerms, newDrawn]);
+    const updatedDrawn = [...drawnTerms, newDrawn];
+    setDrawnTerms(updatedDrawn);
+
+    // Sync drawing state with the Express backend immediately
+    try {
+      await fetch("/api/sync-drawn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ drawnTerms: updatedDrawn })
+      });
+    } catch (e) {
+      // offline fallback
+    }
   };
 
   // Full session clean/restart
@@ -148,7 +215,7 @@ export default function App() {
     showCustomConfirm(
       "Reiniciar Partida",
       "Tens a certeza que desejas apagar o histórico de sorteios e reiniciar a partida de Bingo do Direito Autoral?",
-      () => {
+      async () => {
         setDrawnTerms([]);
         setCelebrationWinner(null);
         
@@ -166,23 +233,51 @@ export default function App() {
         });
 
         setActiveCards(cleanedCards);
+
+        try {
+          await fetch("/api/reset-game", { method: "POST" });
+        } catch (e) {
+          // offline fallback
+        }
       }
     );
   };
 
   // Student adds their card layout to register lobby
-  const handleAddCard = (newCard: BingoCard) => {
+  const handleAddCard = async (newCard: BingoCard) => {
     // Avoid double registration of same owner
     const filtered = activeCards.filter(c => c.ownerName.toLowerCase() !== newCard.ownerName.toLowerCase());
-    setActiveCards([...filtered, newCard]);
+    const updatedCards = [...filtered, newCard];
+    setActiveCards(updatedCards);
+
+    try {
+      await fetch("/api/register-card", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ card: newCard })
+      });
+    } catch (e) {
+      // offline fallback
+    }
   };
 
-  const handleRemoveCard = (cardId: string) => {
+  const handleRemoveCard = async (cardId: string) => {
     setActiveCards(activeCards.filter(c => c.id !== cardId));
+
+    try {
+      await fetch("/api/remove-card", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cardId })
+      });
+    } catch (e) {
+      // offline fallback
+    }
   };
 
   // Toggle cell marked status on students grid
-  const handleUpdateCardMarkings = (cardId: string, rowIndex: number, colIndex: number) => {
+  const handleUpdateCardMarkings = async (cardId: string, rowIndex: number, colIndex: number) => {
+    let targetCard: BingoCard | null = null;
     const updated = activeCards.map(card => {
       if (card.id === cardId) {
         const gridCopy = card.grid.map((row, r) => 
@@ -193,11 +288,25 @@ export default function App() {
             return cell;
           })
         );
-        return { ...card, grid: gridCopy, winChecked: false };
+        const newCard = { ...card, grid: gridCopy, winChecked: false };
+        targetCard = newCard;
+        return newCard;
       }
       return card;
     });
     setActiveCards(updated);
+
+    if (targetCard) {
+      try {
+        await fetch("/api/register-card", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ card: targetCard })
+        });
+      } catch (e) {
+        // offline fallback
+      }
+    }
   };
 
   // Teacher or Student validates a card ID
@@ -238,12 +347,24 @@ export default function App() {
       setCelebrationWinner(card.ownerName);
       
       // Update state
-      setActiveCards(activeCards.map(c => {
+      const updatedCards = activeCards.map(c => {
         if (c.id === cardId) {
           return { ...c, winChecked: true, isWinner: true };
         }
         return c;
-      }));
+      });
+      setActiveCards(updatedCards);
+
+      // Sync winning verification to other players
+      try {
+        fetch("/api/sync-drawn", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ celebrationWinner: card.ownerName, activeCards: updatedCards })
+        });
+      } catch (e) {
+        // offline fallback
+      }
     } else {
       showCustomAlert(
         "Verificação Concluída",
@@ -284,8 +405,17 @@ export default function App() {
     return diag1 || diag2;
   };
 
-  const handleTriggerWinAnimation = (ownerName: string) => {
+  const handleTriggerWinAnimation = async (ownerName: string) => {
     setCelebrationWinner(ownerName);
+    try {
+      await fetch("/api/sync-drawn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ celebrationWinner: ownerName })
+      });
+    } catch (e) {
+      // fallback
+    }
   };
 
   return (

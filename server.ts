@@ -14,6 +14,119 @@ async function startServer() {
 
   app.use(express.json());
 
+  // Memory stores for live classroom multiplayer synchronization
+  interface Cell {
+    term: string;
+    marked: boolean;
+    called: boolean;
+  }
+
+  interface BingoCard {
+    id: string;
+    ownerName: string;
+    grid: Cell[][];
+    dimension: number;
+    winChecked?: boolean;
+    isWinner?: boolean;
+  }
+
+  interface DrawnItem {
+    term: string;
+    description: string;
+    drawnAt: string;
+    order: number;
+  }
+
+  let serverActiveCards: BingoCard[] = [];
+  let serverDrawnTerms: DrawnItem[] = [];
+  let serverCelebrationWinner: string | null = null;
+
+  // Real-time synchronization API endpoints
+  app.get("/api/game-state", (req, res) => {
+    return res.json({
+      success: true,
+      activeCards: serverActiveCards,
+      drawnTerms: serverDrawnTerms,
+      celebrationWinner: serverCelebrationWinner
+    });
+  });
+
+  app.post("/api/register-card", (req, res) => {
+    try {
+      const { card } = req.body;
+      if (!card || !card.id || !card.ownerName) {
+        return res.status(400).json({ error: "Dados da cartela incompletos." });
+      }
+
+      // Avoid dual registrations of same student or same card
+      serverActiveCards = serverActiveCards.filter(
+        c => c.id !== card.id && c.ownerName.toLowerCase() !== card.ownerName.toLowerCase()
+      );
+
+      serverActiveCards.push(card);
+      return res.json({ success: true, activeCards: serverActiveCards });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message || "Erro ao registrar cartela." });
+    }
+  });
+
+  app.post("/api/remove-card", (req, res) => {
+    try {
+      const { cardId } = req.body;
+      if (!cardId) {
+        return res.status(400).json({ error: "ID da cartela é obrigatório." });
+      }
+      serverActiveCards = serverActiveCards.filter(c => c.id !== cardId);
+      return res.json({ success: true, activeCards: serverActiveCards });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message || "Erro ao remover cartela." });
+    }
+  });
+
+  app.post("/api/sync-drawn", (req, res) => {
+    try {
+      const { drawnTerms, celebrationWinner, activeCards } = req.body;
+      if (drawnTerms !== undefined) {
+        serverDrawnTerms = drawnTerms;
+      }
+      if (celebrationWinner !== undefined) {
+        serverCelebrationWinner = celebrationWinner;
+      }
+      if (activeCards !== undefined) {
+        serverActiveCards = activeCards;
+      }
+      return res.json({
+        success: true,
+        drawnTerms: serverDrawnTerms,
+        celebrationWinner: serverCelebrationWinner,
+        activeCards: serverActiveCards
+      });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message || "Erro ao sincronizar sorteios." });
+    }
+  });
+
+  app.post("/api/reset-game", (req, res) => {
+    try {
+      serverDrawnTerms = [];
+      serverCelebrationWinner = null;
+      serverActiveCards = serverActiveCards.map(c => ({
+        ...c,
+        grid: c.grid.map(row => row.map(cell => ({ ...cell, marked: false }))),
+        winChecked: false,
+        isWinner: false
+      }));
+      return res.json({
+        success: true,
+        drawnTerms: serverDrawnTerms,
+        celebrationWinner: serverCelebrationWinner,
+        activeCards: serverActiveCards
+      });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message || "Erro ao resetar rodada no servidor." });
+    }
+  });
+
   // API Route to dispatch dynamic code to phone
   app.post("/api/send-otp", async (req, res) => {
     try {
