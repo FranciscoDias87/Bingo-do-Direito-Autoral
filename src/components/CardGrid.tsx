@@ -23,6 +23,8 @@ interface CardGridProps {
   onRemoveCard: (cardId: string) => void;
   winnerName: string | null;
   onTriggerWinAnimation: (ownerName: string) => void;
+  alertUser?: (title: string, msg: string) => void;
+  confirmUser?: (title: string, msg: string, onConfirm: () => void) => void;
 }
 
 export default function CardGrid({
@@ -32,7 +34,9 @@ export default function CardGrid({
   onUpdateCardMarkings,
   onRemoveCard,
   winnerName,
-  onTriggerWinAnimation
+  onTriggerWinAnimation,
+  alertUser,
+  confirmUser
 }: CardGridProps) {
   const [studentName, setStudentName] = useState("");
   const [dimension, setDimension] = useState<number>(3); // 3 for 3x3 (ideal for fast classroom sessions)
@@ -55,7 +59,11 @@ export default function CardGrid({
     if (wins) {
       onTriggerWinAnimation(currentActiveCard.ownerName);
     } else {
-      alert("Ainda não completou uma linha, coluna ou diagonal cheia! Continue acompanhando os sorteios.");
+      if (alertUser) {
+        alertUser("Ainda não!", "Ainda não completou uma linha, coluna ou diagonal cheia! Continue acompanhando os sorteios.");
+      } else {
+        alert("Ainda não completou uma linha, coluna ou diagonal cheia! Continue acompanhando os sorteios.");
+      }
     }
   };
 
@@ -100,7 +108,11 @@ export default function CardGrid({
     const totalTermsNeeded = dimension * dimension;
     
     if (shuffled.length < totalTermsNeeded) {
-      alert("Não há termos salvos suficientes para gerar esta dimensão de cartela.");
+      if (alertUser) {
+        alertUser("Erro", "Não há termos salvos suficientes para gerar esta dimensão de cartela.");
+      } else {
+        alert("Não há termos salvos suficientes para gerar esta dimensão de cartela.");
+      }
       return;
     }
 
@@ -144,10 +156,22 @@ export default function CardGrid({
   };
 
   const handleAbandonCard = () => {
-    if (currentActiveCard && confirm("Deseja mesmo sair desta cartela e criar outra?")) {
-      onRemoveCard(currentActiveCard.id);
-      setMyCardId(null);
-      localStorage.removeItem("bingo_my_card_id");
+    if (currentActiveCard) {
+      if (confirmUser) {
+        confirmUser(
+          "Trocar de Cartela",
+          "Deseja mesmo sair desta cartela e criar outra? A sua cartela atual será descartada.",
+          () => {
+            onRemoveCard(currentActiveCard.id);
+            setMyCardId(null);
+            localStorage.removeItem("bingo_my_card_id");
+          }
+        );
+      } else if (confirm("Deseja mesmo sair desta cartela e criar outra?")) {
+        onRemoveCard(currentActiveCard.id);
+        setMyCardId(null);
+        localStorage.removeItem("bingo_my_card_id");
+      }
     }
   };
 

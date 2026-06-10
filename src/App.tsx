@@ -20,7 +20,13 @@ import {
   KeyRound,
   Mail,
   LogOut,
-  ShieldAlert
+  ShieldAlert,
+  Smartphone,
+  MessageSquare,
+  Send,
+  Eye,
+  EyeOff,
+  ShieldCheck
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -31,22 +37,52 @@ export default function App() {
     return localStorage.getItem("bingo_is_teacher_verified") === "true";
   });
 
-  const handleVerifyTeacher = (email: string, code: string): boolean => {
-    const formattedEmail = email.trim().toLowerCase();
-    const formattedCode = code.trim();
-    if (formattedEmail === "chicodias15@gmail.com" || formattedCode === "direito2026") {
-      setIsTeacherVerified(true);
-      localStorage.setItem("bingo_is_teacher_verified", "true");
-      return true;
-    }
-    return false;
+  const [dialogState, setDialogState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: "alert" | "confirm";
+    onConfirm?: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    type: "alert"
+  });
+
+  const showCustomAlert = (title: string, message: string) => {
+    setDialogState({
+      isOpen: true,
+      title,
+      message,
+      type: "alert"
+    });
+  };
+
+  const showCustomConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setDialogState({
+      isOpen: true,
+      title,
+      message,
+      type: "confirm",
+      onConfirm
+    });
+  };
+
+  const handleVerifyTeacher = (): void => {
+    setIsTeacherVerified(true);
+    localStorage.setItem("bingo_is_teacher_verified", "true");
   };
 
   const handleTeacherLogout = () => {
-    if (confirm("Deseja mesmo sair do Painel do Professor e bloquear o acesso?")) {
-      setIsTeacherVerified(false);
-      localStorage.removeItem("bingo_is_teacher_verified");
-    }
+    showCustomConfirm(
+      "Confirmar Saída",
+      "Deseja mesmo sair do Painel do Professor e bloquear o acesso?",
+      () => {
+        setIsTeacherVerified(false);
+        localStorage.removeItem("bingo_is_teacher_verified");
+      }
+    );
   };
 
   // Load drawing history and cards list from localStorage
@@ -89,7 +125,7 @@ export default function App() {
     );
 
     if (remainingTerms.length === 0) {
-      alert("Todos os conceitos já foram sorteados!");
+      showCustomAlert("Sorteio Concluído", "Todos os conceitos já foram sorteados!");
       return;
     }
 
@@ -109,25 +145,29 @@ export default function App() {
 
   // Full session clean/restart
   const handleResetGame = () => {
-    if (confirm("Tens a certeza que desejas apagar o histórico de sorteios e reiniciar a partida?")) {
-      setDrawnTerms([]);
-      setCelebrationWinner(null);
-      
-      // Clean marked flags of active cards to keep same names but fresh boards
-      const cleanedCards = activeCards.map(card => {
-        const cleanedGrid = card.grid.map(row => 
-          row.map(cell => ({ ...cell, marked: false }))
-        );
-        return {
-          ...card,
-          grid: cleanedGrid,
-          winChecked: false,
-          isWinner: false
-        };
-      });
+    showCustomConfirm(
+      "Reiniciar Partida",
+      "Tens a certeza que desejas apagar o histórico de sorteios e reiniciar a partida de Bingo do Direito Autoral?",
+      () => {
+        setDrawnTerms([]);
+        setCelebrationWinner(null);
+        
+        // Clean marked flags of active cards to keep same names but fresh boards
+        const cleanedCards = activeCards.map(card => {
+          const cleanedGrid = card.grid.map(row => 
+            row.map(cell => ({ ...cell, marked: false }))
+          );
+          return {
+            ...card,
+            grid: cleanedGrid,
+            winChecked: false,
+            isWinner: false
+          };
+        });
 
-      setActiveCards(cleanedCards);
-    }
+        setActiveCards(cleanedCards);
+      }
+    );
   };
 
   // Student adds their card layout to register lobby
@@ -164,7 +204,7 @@ export default function App() {
   const handleVerifyCard = (cardId: string) => {
     const card = activeCards.find(c => c.id === cardId);
     if (!card) {
-      alert("Cartela não localizada!");
+      showCustomAlert("Erro", "Cartela não localizada!");
       return;
     }
 
@@ -190,7 +230,10 @@ export default function App() {
     const isWinnerText = checkGenericCardWinner(card) ? "VENCEDOR!" : "AINDA NÃO GANHOU";
 
     if (hasIllegalMarkings) {
-      alert(`Atenção: A cartela de ${card.ownerName} possui termos marcados que AINDA não foram sorteados pelo professor! Verifique com atenção.`);
+      showCustomAlert(
+        "Pendência de Integridade",
+        `Atenção: A cartela de ${card.ownerName} possui termos marcados que AINDA não foram sorteados pelo professor! Verifique com atenção.`
+      );
     } else if (checkGenericCardWinner(card)) {
       setCelebrationWinner(card.ownerName);
       
@@ -202,7 +245,10 @@ export default function App() {
         return c;
       }));
     } else {
-      alert(`Verificação Concluída para ${card.ownerName}:\n- Acertos válidos: ${correctMarkingCount}/${totalCellsCount}\n- Status: Ainda faltam mais sorteios para fechar uma linha, coluna ou diagonal!`);
+      showCustomAlert(
+        "Verificação Concluída",
+        `Verificação para ${card.ownerName}:\n- Acertos válidos: ${correctMarkingCount}/${totalCellsCount}\n- Status: Ainda faltam mais sorteios para fechar uma linha, coluna ou diagonal!`
+      );
     }
   };
 
@@ -367,6 +413,8 @@ export default function App() {
                 onRemoveCard={handleRemoveCard}
                 winnerName={celebrationWinner}
                 onTriggerWinAnimation={handleTriggerWinAnimation}
+                alertUser={showCustomAlert}
+                confirmUser={showCustomConfirm}
               />
             </motion.div>
           )}
@@ -505,100 +553,406 @@ export default function App() {
       </AnimatePresence>
 
       {/* School Footer Design Element */}
-      <footer className="mt-auto pt-10 text-center text-[10px] text-slate-400 font-mono tracking-widest uppercase">
-        © Curso Técnico de Desenvolvimento de Sistemas • Piaui Governo do Estado
+      <footer className="mt-auto pt-10 text-center text-[10px] text-slate-400 font-mono tracking-widest uppercase pb-4">
+        © Curso Técnico de Desenvolvimento de Sistemas • Piauí Governo do Estado
       </footer>
+
+      {/* CUSTOM NON-BLOCKING ALERT AND CONFIRMATION DIALOG MODAL */}
+      <AnimatePresence>
+        {dialogState.isOpen && (
+          <div id="custom-dialog-overlay" className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-slate-900 border border-slate-700 text-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl p-6 space-y-5"
+            >
+              <div className="space-y-2 text-left">
+                <h3 className="font-extrabold text-base text-white tracking-tight flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-indigo-400 animate-pulse" />
+                  {dialogState.title}
+                </h3>
+                <p className="text-xs text-slate-300 font-medium whitespace-pre-wrap leading-relaxed">
+                  {dialogState.message}
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                {dialogState.type === "confirm" ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setDialogState(prev => ({ ...prev, isOpen: false }))}
+                      className="px-4 py-2.5 rounded-xl border border-white/10 bg-white/5 text-white text-[10px] font-bold uppercase hover:bg-white/10 duration-150 cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDialogState(prev => ({ ...prev, isOpen: false }));
+                        if (dialogState.onConfirm) dialogState.onConfirm();
+                      }}
+                      className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase shadow-lg duration-150 cursor-pointer"
+                    >
+                      Confirmar
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setDialogState(prev => ({ ...prev, isOpen: false }))}
+                    className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase duration-150 cursor-pointer"
+                  >
+                    OK
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );
 }
 
-function TeacherLoginGate({ onVerify }: { onVerify: (email: string, code: string) => boolean }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+function TeacherLoginGate({ onVerify }: { onVerify: () => void }) {
+  const [step, setStep] = useState<"phone" | "code">("phone");
+  const [phoneNumber, setPhoneNumber] = useState("(86) 99401-2026");
+  const [smsCode, setSmsCode] = useState("");
+  const [generatedCode, setGeneratedCode] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [stealthMode, setStealthMode] = useState(true); // Projector protection mode
+  const [isCodeVisible, setIsCodeVisible] = useState(false);
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSendSms = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccessMessage(null);
+    setIsSending(true);
 
-    const success = onVerify(email, password);
-    if (!success) {
-      setError("E-mail do professor ou Código da Aula inválido! Tente novamente.");
+    try {
+      const response = await fetch("/api/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: phoneNumber }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Erro de rede ao solicitar envio.");
+      }
+
+      const data = await response.json();
+      if (data.sentRealSms) {
+        setSuccessMessage(`Mensagem REAL de texto enviada com sucesso para ${phoneNumber}!`);
+        setGeneratedCode(""); // hide from sandbox simulated display since real carrier send was successful
+      } else {
+        setGeneratedCode(data.code || "");
+        if (data.errorDetails) {
+          if (data.errorDetails.includes("Configuracoes do Twilio ausentes")) {
+            setError(`Configuração do Twilio necessária para envio de SMS Real. O código de segurança foi carregado com sucesso no simulador de celular à direita.`);
+          } else {
+            setError(`O Twilio retornou um alerta: "${data.errorDetails}". Isso geralmente ocorre porque a sua conta Twilio é de testes (Trial) e o celular destino não foi cadastrado como verificado na plataforma deles. Entretanto, para sua aula continuar, seu código de acesso já foi gerado e exibido no simulador do celular à direita!`);
+          }
+        } else {
+          setError(`Modo simulado ativo. O código foi carregado no simulador de celular à direita.`);
+        }
+      }
+      setStep("code");
+    } catch (err: any) {
+      setError(err.message || "Erro ao conectar-se ao servidor de verificação.");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleVerifyCode = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsVerifying(true);
+
+    try {
+      const response = await fetch("/api/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: phoneNumber, code: smsCode }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Código inválido.");
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        onVerify();
+      }
+    } catch (err: any) {
+      setError(err.message || "Erro ao processar validação.");
+    } finally {
+      setIsVerifying(false);
     }
   };
 
   return (
-    <div className="max-w-md mx-auto text-white mt-4" id="teacher-verification-gate">
-      <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 md:p-8 border border-white/20 shadow-2xl space-y-6 relative overflow-hidden">
+    <div className="max-w-4xl mx-auto text-white mt-4 grid grid-cols-1 md:grid-cols-12 gap-6" id="teacher-verification-gate">
+      
+      {/* LEFT COLUMN: Main login card (8-span) */}
+      <div className="md:col-span-7 bg-white/10 backdrop-blur-xl rounded-3xl p-6 md:p-8 border border-white/20 shadow-2xl space-y-6 relative overflow-hidden flex flex-col justify-between">
         <div className="absolute -top-10 -right-10 w-36 h-36 bg-pink-500/10 rounded-full blur-2xl pointer-events-none" />
         
-        <div className="text-center space-y-2">
-          <div className="w-16 h-16 bg-white/10 text-white border border-white/20 rounded-2xl mx-auto flex items-center justify-center shadow-lg">
-            <Lock className="w-8 h-8 text-indigo-300 animate-pulse" />
+        <div>
+          <div className="text-center md:text-left space-y-2 mb-6">
+            <div className="w-14 h-14 bg-white/10 text-white border border-white/20 rounded-2xl flex items-center justify-center shadow-lg">
+              <Smartphone className="w-7 h-7 text-indigo-300 animate-pulse" />
+            </div>
+            <div className="pt-2">
+              <h3 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                Área do Professor 🔒
+              </h3>
+              <p className="text-indigo-100/70 text-xs md:text-sm leading-normal mt-1">
+                Para garantir que estudantes não tenham acesso ao sorteador (já que estão proibidos de usar celular na sala), autentique-se via mensagem de texto (SMS).
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-xl font-bold text-white tracking-tight">Área do Professor</h3>
-            <p className="text-indigo-100/70 text-xs md:text-sm leading-normal max-w-sm mx-auto mt-1">
-              Esta aba possui menus de sorteio e regência reservados ao professor. Identifique-se para liberar o painel.
-            </p>
-          </div>
+
+          <AnimatePresence mode="wait">
+            {step === "phone" ? (
+              <motion.form
+                key="step-phone"
+                onSubmit={handleSendSms}
+                className="space-y-4"
+                initial={{ opacity: 0, x: -15 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 15 }}
+                transition={{ duration: 0.15 }}
+              >
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-white/80 uppercase tracking-widest block font-mono">
+                    Celular do Professor Chico Dias
+                  </label>
+                  <p className="text-[10px] text-indigo-200/50 -mt-1 italic">
+                    O código SMS será enviado para o celular pré-cadastrado do docente.
+                  </p>
+                  <div className="relative pt-1">
+                    <Smartphone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-white/70" />
+                    <input
+                      id="input-teacher-sms-phone"
+                      type="text"
+                      required
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      placeholder="Ex: (86) 99401-2026"
+                      className="w-full pl-11 pr-4 py-3.5 bg-white/10 hover:bg-white/15 border border-white/15 focus:border-white/40 rounded-xl font-bold focus:ring-2 focus:ring-white/10 duration-150 outline-hidden text-sm text-white"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  id="btn-teacher-submit-phone"
+                  type="submit"
+                  disabled={isSending}
+                  className="w-full bg-white text-indigo-950 font-black py-4 rounded-xl hover:bg-indigo-50 active:scale-98 transition duration-150 flex items-center justify-center gap-2 text-xs uppercase tracking-wider shadow-2xl cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSending ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-indigo-950 border-t-transparent rounded-full animate-spin" />
+                      <span>Transmitindo p/ Rede Móvel...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4 text-indigo-950" />
+                      <span>Enviar Código por SMS 📱</span>
+                    </>
+                  )}
+                </button>
+              </motion.form>
+            ) : (
+              <motion.form
+                key="step-code"
+                onSubmit={handleVerifyCode}
+                className="space-y-4"
+                initial={{ opacity: 0, x: -15 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 15 }}
+                transition={{ duration: 0.15 }}
+              >
+                {successMessage && (
+                  <div className="bg-emerald-500/20 border border-emerald-500/40 text-emerald-200 p-3 rounded-xl text-xs flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 flex-shrink-0" />
+                    <span>{successMessage}</span>
+                  </div>
+                )}
+
+                {error && (
+                  <div className="bg-amber-500/20 border border-amber-500/40 text-amber-200 p-3 rounded-xl text-[11px] leading-relaxed flex items-start gap-2">
+                    <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-black text-white/80 uppercase tracking-widest block font-mono">
+                      Código de 6 dígitos recebido
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setStep("phone")}
+                      className="text-[10px] text-indigo-300 font-bold hover:underline"
+                    >
+                      Alterar celular
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-white/70" />
+                    <input
+                      id="input-teacher-sms-code"
+                      type="text"
+                      maxLength={6}
+                      required
+                      placeholder="Digite os 6 números"
+                      value={smsCode}
+                      onChange={(e) => setSmsCode(e.target.value.replace(/\D/g, ""))}
+                      className="w-full pl-11 pr-4 py-3.5 bg-white/10 hover:bg-white/15 border border-white/15 focus:border-white/40 rounded-xl font-bold focus:ring-2 focus:ring-white/10 duration-150 outline-hidden tracking-widest text-base text-white placeholder:tracking-normal placeholder:text-sm"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  id="btn-teacher-submit-otp"
+                  type="submit"
+                  disabled={isVerifying}
+                  className="w-full bg-emerald-500 text-[#090d16] font-black py-4 rounded-xl hover:bg-emerald-400 active:scale-98 transition duration-150 flex items-center justify-center gap-2 text-xs uppercase tracking-wider shadow-2xl cursor-pointer disabled:opacity-50"
+                >
+                  {isVerifying ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                      <span>Validando código...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>Confirmar e Liberar Sorteador 🔓</span>
+                    </>
+                  )}
+                </button>
+              </motion.form>
+            )}
+          </AnimatePresence>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-          {error && (
-            <div className="bg-red-500/20 border border-red-500/40 text-red-200 p-3 rounded-xl text-xs flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 flex-shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-black text-white/80 uppercase tracking-widest block font-mono">E-mail do Professor</label>
-            <div className="relative">
-              <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/70" />
-              <input
-                id="input-teacher-email"
-                type="email"
-                required
-                placeholder="Ex: chicodias15@gmail.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-white/10 hover:bg-white/15 border border-white/15 focus:border-white/40 rounded-xl font-bold focus:ring-2 focus:ring-white/10 duration-150 outline-hidden placeholder:text-white/30 text-sm text-white"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-black text-white/80 uppercase tracking-widest block font-mono">Código da Aula</label>
-            <div className="relative">
-              <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/70" />
-              <input
-                id="input-teacher-password"
-                type="password"
-                required
-                placeholder="Ex: direito2026"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-white/10 hover:bg-white/15 border border-white/15 focus:border-white/40 rounded-xl font-bold focus:ring-2 focus:ring-white/10 duration-150 outline-hidden placeholder:text-white/30 text-sm text-white"
-              />
-            </div>
-          </div>
-
-          <button
-            id="btn-teacher-login-submit"
-            type="submit"
-            className="w-full bg-white text-indigo-950 font-black py-4 rounded-xl hover:bg-indigo-50 active:scale-98 transition duration-150 flex items-center justify-center gap-2 text-xs uppercase tracking-wider shadow-2xl cursor-pointer mt-4"
-          >
-            <Unlock className="w-4 h-4 text-indigo-950" />
-            Liberar Painel de Controle
-          </button>
-        </form>
-
-        <div className="bg-indigo-950/40 p-4 rounded-2xl border border-white/10 space-y-1 text-center text-xs text-indigo-200">
-          <p className="leading-relaxed font-semibold">
-            Validação por e-mail (<strong className="text-white">chicodias15@gmail.com</strong>) ou senha de aula (<strong className="text-white">direito2026</strong>).
+        <div className="bg-indigo-950/40 p-3.5 rounded-2xl border border-white/10 text-xs text-indigo-200 mt-6 md:mt-4 space-y-1">
+          <p className="leading-relaxed font-semibold text-center">
+            🔒 Acesso Docente Privativo: <strong className="text-white">Prof. Chico Dias</strong>
           </p>
+        </div>
+      </div>
+
+      {/* RIGHT COLUMN: Simulator Appartment (5-span) - Provides the mock SMS phone */}
+      <div className="md:col-span-5 flex flex-col justify-start">
+        <div className="bg-slate-900 border-2 border-slate-700 rounded-3xl p-4 shadow-2xl space-y-4 text-left relative overflow-hidden flex flex-col">
+          {/* Top Speaker phone bar */}
+          <div className="flex justify-center items-center gap-1.5 pb-2 border-b border-white/10">
+            <span className="w-1.5 h-1.5 rounded-full bg-slate-600" />
+            <div className="w-10 h-1 bg-slate-700 rounded-full" />
+            <span className="text-[9px] font-mono text-slate-500 ml-auto">Rede: GOV-PI</span>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Smartphone className="w-4 h-4 text-indigo-400" />
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider font-mono">SIMULADOR DE TELEFONE CELULAR</span>
+            </div>
+
+            <div className="bg-black/40 rounded-2xl p-3.5 border border-white/5 space-y-3 text-xs leading-relaxed relative">
+              <div className="flex items-center gap-1.5 text-[9px] font-bold text-indigo-300">
+                <MessageSquare className="w-3 h-3" />
+                <span>Aplicativo Mensagens • Agora</span>
+              </div>
+
+              {generatedCode ? (
+                <div className="space-y-2">
+                  <p className="text-slate-200 text-[11px] leading-relaxed">
+                    SMS de <strong className="text-white">BINGO-AUTORAL</strong>:
+                  </p>
+                  
+                  {/* Stealth Mode / Projector protection toggle */}
+                  <div className="bg-slate-950/50 p-2.5 rounded-xl border border-white/5 text-center relative overflow-hidden">
+                    {stealthMode ? (
+                      <div>
+                        {isCodeVisible ? (
+                          <div className="space-y-1.5">
+                            <span className="text-xl font-mono font-black text-emerald-400 tracking-widest block select-all">
+                              {generatedCode}
+                            </span>
+                            <span className="text-[8px] text-slate-400 block font-sans">Este é o seu código de acesso</span>
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <span className="text-lg font-mono font-black text-amber-300 tracking-widest block select-none">
+                              ••••••
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsCodeVisible(true);
+                                setTimeout(() => setIsCodeVisible(false), 9000); // auto-hide for security
+                              }}
+                              className="text-[9px] bg-white/10 hover:bg-white/20 px-2 py-1 rounded font-bold uppercase text-indigo-300 tracking-wide mt-1 cursor-pointer"
+                            >
+                              👁️ Revelar Código (Stealth para Projetor)
+                            </button>
+                            <span className="text-[8px] text-yellow-300/60 block leading-tight pt-1">
+                              ⚠️ Esconda o projetor ou use a revelação rápida de 9s se estiver transmitindo à sala!
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <span className="text-xl font-mono font-black text-emerald-400 tracking-widest block">
+                          {generatedCode}
+                        </span>
+                        <span className="text-[8px] text-indigo-200/55 block">Código Dinâmico Livre</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="text-[9px] text-slate-400 leading-normal italic text-center">
+                    "Professor Chico Dias, insira este token para obter os privilégios da regência do Bingo."
+                  </p>
+                </div>
+              ) : (
+                <div className="py-4 text-center text-slate-500 space-y-1">
+                  <p className="font-semibold text-[11px]">Nenhuma nova mensagem na tela</p>
+                  <p className="text-[9px] leading-relaxed text-slate-600">
+                    Se você possuir credenciais do Twilio configuradas, o SMS real já foi despachado para a operadora do seu celular! Caso contrário, o código aparecerá aqui como fallback.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Simulated hardware controls */}
+            <div className="pt-2 flex items-center justify-between">
+              <label className="flex items-center gap-1.5 cursor-pointer text-slate-400 hover:text-white transition select-none">
+                <input
+                  type="checkbox"
+                  checked={stealthMode}
+                  onChange={(e) => setStealthMode(e.target.checked)}
+                  className="rounded border-slate-600 bg-slate-800 text-indigo-500 focus:ring-0 w-3.5 h-3.5"
+                />
+                <span className="text-[9px] font-bold uppercase tracking-wider font-mono">Modo Projetor (Proteção)</span>
+              </label>
+              
+              <span className="text-[8px] font-mono text-slate-500">Vol+ Vol-</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

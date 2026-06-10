@@ -14,7 +14,8 @@ import {
   Award,
   LogOut,
   Printer,
-  BookOpen
+  BookOpen,
+  ExternalLink
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -76,6 +77,110 @@ export default function CallerPanel({
       });
     }
     setGeneratedPrintCards(cards);
+  };
+
+  const handlePrint = () => {
+    if (generatedPrintCards.length === 0) return;
+    
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      window.print();
+      return;
+    }
+
+    let cardsHtml = "";
+    generatedPrintCards.forEach((card, idx) => {
+      let gridCells = "";
+      card.grid.forEach((row, rIdx) => {
+        row.forEach((cell, cIdx) => {
+          gridCells += `
+            <div style="border: 2px solid #000000; background: #fafafa; aspect-ratio: 1 / 1; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; text-align: center; min-height: 80px;">
+              <span style="font-size: 8px; color: #94a3b8; align-self: flex-start;">R${rIdx + 1}C${cIdx + 1}</span>
+              <span style="font-weight: 800; font-size: 13px; color: #000000; line-height: 1.25; margin: auto 0;">${cell.term}</span>
+              <div style="width: 18px; height: 18px; border-radius: 50%; border: 1px dashed #64748b;"></div>
+            </div>
+          `;
+        });
+      });
+
+      cardsHtml += `
+        <div class="print-card-box" style="border: 3px solid #000000; border-radius: 12px; padding: 24px; margin-bottom: 40px; background: white; color: black; position: relative; page-break-inside: avoid; break-inside: avoid;">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #cccccc; padding-bottom: 12px; margin-bottom: 16px;">
+            <div>
+              <span style="font-size: 10px; font-weight: bold; color: #4f46e5; letter-spacing: 0.05em; text-transform: uppercase; display: block;">DIREITO AUTORAL • CURSO DE DESENVOLVIMENTO DE SISTEMAS</span>
+              <h4 style="font-size: 16px; font-weight: 800; color: #1e293b; margin: 4px 0 0 0;">BINGO DE DIREITO AUTORAL • Cartela do Aluno</h4>
+            </div>
+            <div style="text-align: right;">
+              <span style="font-size: 10px; color: #64748b; display: block;">Dimensão: ${card.dimension}x${card.dimension}</span>
+              <span style="font-size: 12px; color: #4f46e5; font-weight: bold; display: block;">Folha #${idx + 1}</span>
+            </div>
+          </div>
+
+          <div style="border-bottom: 1px solid #cccccc; padding-bottom: 4px; margin-bottom: 16px; font-size: 14px; font-weight: bold; color: #1e293b; font-style: italic;">
+            Nome do Aluno: ___________________________________________________________
+          </div>
+
+          <div style="display: grid; gap: 8px; grid-template-columns: repeat(${card.dimension}, minmax(0, 1fr));">
+            ${gridCells}
+          </div>
+
+          <div style="margin-top: 16px; padding-top: 12px; border-top: 1px dashed #cccccc; display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: #64748b;">
+            <span>Código de Verificação: <strong>${card.id.slice(0, 15).toUpperCase()}</strong></span>
+            <span>Aviso Legal: Não cometa Plágio! Respeite o direito intelectual.</span>
+          </div>
+        </div>
+      `;
+
+      if ((idx + 1) % 2 === 0 && (idx + 1) < generatedPrintCards.length) {
+        cardsHtml += `<div style="page-break-after: always; break-after: page; height: 1px;"></div>`;
+      }
+    });
+
+    const fullHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Imprimir Cartelas - Bingo Direito Autoral</title>
+        <meta charset="utf-8">
+        <style>
+          body, html {
+            background: white !important;
+            color: black !important;
+            margin: 0 !important;
+            padding: 30px !important;
+            font-family: system-ui, -apple-system, sans-serif !important;
+          }
+          @media print {
+            body {
+              padding: 0 !important;
+            }
+            .no-print-banner {
+              display: none !important;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div style="max-width: 800px; margin: 0 auto;">
+          <div style="text-align: center; margin-bottom: 20px; background: #e0f2fe; padding: 15px; border-radius: 12px; border: 1px solid #bae6fd;" class="no-print-banner">
+            <h3 style="margin: 0; color: #0369a1;">Aba de Impressão Direta Ativa</h3>
+            <p style="margin: 5px 0 0 0; font-size: 12px; color: #0284c7;">
+              Se a janela de impressão não abrir automaticamente, pressione <strong>Ctrl + P</strong> (or Cmd + P no Mac) para imprimir.
+            </p>
+          </div>
+          ${cardsHtml}
+        </div>
+        <script>
+          setTimeout(function() {
+            window.print();
+          }, 500);
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(fullHtml);
+    printWindow.document.close();
   };
 
   const currentDrawn = drawnTerms.length > 0 ? drawnTerms[drawnTerms.length - 1] : null;
@@ -172,7 +277,7 @@ export default function CallerPanel({
                 setShowPrintModal(true);
                 setGeneratedPrintCards([]);
               }}
-              className="px-3 py-2 rounded-xl border border-indigo-400/30 bg-indigo-550/20 text-indigo-200 hover:bg-indigo-500 hover:text-white transition duration-150 font-bold text-xs flex items-center gap-2 uppercase tracking-wide cursor-pointer"
+              className="px-3 py-2 rounded-xl border border-indigo-400/30 bg-indigo-500/20 text-indigo-200 hover:bg-indigo-500 hover:text-white transition duration-150 font-bold text-xs flex items-center gap-2 uppercase tracking-wide cursor-pointer"
               title="Gerar cartelas em lote para sala sem celular"
             >
               <Printer className="w-3.5 h-3.5 animate-bounce text-indigo-300" />
@@ -514,8 +619,9 @@ export default function CallerPanel({
       {/* Batch Cards Print Modal for Classrooms without cell phones */}
       <AnimatePresence>
         {showPrintModal && (
-          <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div id="print-modal-overlay" className="fixed inset-0 bg-slate-950/95 backdrop-blur-md z-50 flex items-center justify-center p-4">
             <motion.div
+              id="print-modal-content"
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
@@ -541,6 +647,31 @@ export default function CallerPanel({
               {/* Modal content body */}
               <div className="p-6 overflow-y-auto space-y-6 flex-1 custom-scrollbar">
                 
+                {/* Information banner for iframe environment (HIDDEN DURING PRINT) */}
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 flex gap-3 text-amber-200 no-print text-left">
+                  <div className="shrink-0 w-8 h-8 rounded-xl bg-amber-500/15 flex items-center justify-center font-bold text-sm">
+                    💡
+                  </div>
+                  <div className="space-y-1">
+                    <h5 className="text-xs font-black uppercase tracking-wider text-amber-300">Dica de Impressão (Navegador)</h5>
+                    <p className="text-[11px] font-medium text-amber-200/90 leading-relaxed">
+                      Se você estiver rodando no visualizador integrado do AI Studio, o navegador pode bloquear a janela de impressão direta por segurança. 
+                    </p>
+                    <p className="text-[11px] font-medium text-amber-200/90 leading-relaxed pt-1 flex flex-wrap items-center gap-2">
+                      Se o botão de imprimir não reagir, clique aqui para abrir em tela inteira (o login continuará ativo automaticamente):
+                      <a
+                        href={window.location.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 bg-amber-500/20 hover:bg-amber-500 text-amber-200 hover:text-white px-3 py-1.5 rounded-lg border border-amber-500/30 font-black text-[10px] uppercase duration-150 tracking-wider shadow-sm cursor-pointer"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        Abrir em Nova Aba 🚀
+                      </a>
+                    </p>
+                  </div>
+                </div>
+
                 {/* Options panel (HIDDEN DURING PRINT) */}
                 <div className="bg-white/5 p-5 rounded-2xl border border-white/10 space-y-4 no-print">
                   <h4 className="text-xs font-black uppercase tracking-widest text-indigo-300 font-mono">Configurar Impressão de Cartelas</h4>
@@ -551,14 +682,14 @@ export default function CallerPanel({
                       <select
                         value={printCardCount}
                         onChange={(e) => setPrintCardCount(Number(e.target.value))}
-                        className="w-full bg-white/10 border border-white/15 pr-8 pl-3 py-2.5 rounded-xl font-bold focus:ring-2 focus:ring-indigo-500/50 outline-hidden text-white"
+                        className="w-full bg-slate-800 border border-slate-700 pr-8 pl-3 py-2.5 rounded-xl font-bold focus:ring-2 focus:ring-indigo-500/50 outline-hidden text-white cursor-pointer"
                       >
-                        <option value={5} className="bg-slate-900">5 Cartelas</option>
-                        <option value={10} className="bg-slate-900">10 Cartelas</option>
-                        <option value={15} className="bg-slate-900">15 Cartelas</option>
-                        <option value={20} className="bg-slate-900">20 Cartelas</option>
-                        <option value={30} className="bg-slate-900">30 Cartelas</option>
-                        <option value={40} className="bg-slate-900">40 Cartelas</option>
+                        <option value={5} className="bg-slate-800 text-white font-bold">5 Cartelas</option>
+                        <option value={10} className="bg-slate-800 text-white font-bold">10 Cartelas</option>
+                        <option value={15} className="bg-slate-800 text-white font-bold">15 Cartelas</option>
+                        <option value={20} className="bg-slate-800 text-white font-bold">20 Cartelas</option>
+                        <option value={30} className="bg-slate-800 text-white font-bold">30 Cartelas</option>
+                        <option value={40} className="bg-slate-800 text-white font-bold">40 Cartelas</option>
                       </select>
                     </div>
 
@@ -590,7 +721,7 @@ export default function CallerPanel({
                   <div className="pt-2">
                     <button
                       onClick={handleGeneratePrintCards}
-                      className="w-full bg-indigo-600 hover:bg-indigo-505 text-white font-black py-3 rounded-xl transition duration-150 text-xs uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black py-3 rounded-xl transition duration-150 text-xs uppercase tracking-wider shadow-lg flex items-center justify-center gap-2 cursor-pointer"
                     >
                       <Sparkles className="w-4 h-4 text-pink-200 fill-pink-200" />
                       Gerar {printCardCount} Combinatórias de Cartela
@@ -603,53 +734,121 @@ export default function CallerPanel({
                   {/* Print custom stylesheet injection */}
                   <style dangerouslySetInnerHTML={{ __html: `
                     @media print {
+                      @page {
+                        size: A4 portrait;
+                        margin: 12mm 12mm 12mm 12mm;
+                      }
                       body, html {
                         background: white !important;
                         color: black !important;
                         margin: 0 !important;
                         padding: 0 !important;
+                        overflow: visible !important;
+                        height: auto !important;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
                       }
-                      header, nav, footer, button, .no-print {
+                      
+                      /* Hide everything except the print modal box container */
+                      #bingo-app-header, #bingo-app-nav, footer, #teacher-verification-gate {
                         display: none !important;
                         height: 0 !important;
                         overflow: hidden !important;
                         opacity: 0 !important;
                       }
+                      #caller-panel-container > *:not(#print-modal-overlay) {
+                        display: none !important;
+                        height: 0 !important;
+                        overflow: hidden !important;
+                        opacity: 0 !important;
+                      }
+
+                      /* Transform fixed dark overlay modal into an inline page flow layout */
+                      #print-modal-overlay {
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 100% !important;
+                        height: auto !important;
+                        min-height: 100% !important;
+                        background: white !important;
+                        color: black !important;
+                        padding: 0 !important;
+                        margin: 0 !important;
+                        display: block !important;
+                        overflow: visible !important;
+                        z-index: 9999999 !important;
+                        backdrop-filter: none !important;
+                        -webkit-backdrop-filter: none !important;
+                      }
+
+                      #print-modal-content {
+                        width: 100% !important;
+                        max-width: none !important;
+                        height: auto !important;
+                        max-height: none !important;
+                        background: white !important;
+                        color: black !important;
+                        border: none !important;
+                        box-shadow: none !important;
+                        padding: 0 !important;
+                        margin: 0 !important;
+                        display: block !important;
+                        overflow: visible !important;
+                      }
+
+                      /* Hide header, options panel, buttons and close actions during active print */
+                      .no-print, button, select, header, footer {
+                        display: none !important;
+                        height: 0 !important;
+                        width: 0 !important;
+                        overflow: hidden !important;
+                        opacity: 0 !important;
+                      }
+
                       #print-preview-container {
-                        position: absolute;
-                        left: 0;
-                        top: 0;
                         width: 100% !important;
                         background: white !important;
                         color: black !important;
-                        padding: 10px !important;
+                        padding: 0 !important;
                         margin: 0 !important;
+                        display: block !important;
+                        overflow: visible !important;
                       }
+
+                      /* Beautiful black and white student cards block */
                       .print-card-box {
                         page-break-inside: avoid !important;
                         break-inside: avoid !important;
-                        border: 2px solid #000000 !important;
+                        border: 3px solid #000000 !important;
                         border-radius: 12px !important;
-                        padding: 15px !important;
-                        margin-bottom: 30px !important;
+                        padding: 24px !important;
+                        margin-bottom: 40px !important;
                         background: white !important;
                         color: black !important;
-                        font-family: sans-serif !important;
+                        font-family: system-ui, -apple-system, sans-serif !important;
                         box-shadow: none !important;
                       }
+
                       .print-grid-cell {
-                        border: 1px solid #000000 !important;
+                        border: 2px solid #000000 !important;
                         background: white !important;
                         color: black !important;
-                        font-family: sans-serif !important;
+                        aspect-ratio: 1 / 1 !important;
                       }
+
                       .print-cell-text {
                         color: black !important;
-                        font-weight: bold !important;
+                        font-weight: 800 !important;
+                        font-size: 13px !important;
+                        line-height: 1.25 !important;
                       }
+
                       .cut-guide {
-                        border-top: 1px dashed #666666 !important;
-                        margin: 15px 0 !important;
+                        display: flex !important;
+                        border-top: 2px dashed #333333 !important;
+                        margin: 25px 0 !important;
+                        padding-top: 5px !important;
                       }
                     }
                   ` }} />
@@ -663,11 +862,11 @@ export default function CallerPanel({
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-6">
+                    <div className="space-y-6 animate-fade-in">
                       <div className="flex items-center justify-between bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 px-4.5 py-3 rounded-xl no-print">
                         <span className="text-xs font-bold font-mono">✅ {generatedPrintCards.length} cartelas geradas com sucesso!</span>
                         <button
-                          onClick={() => window.print()}
+                          onClick={handlePrint}
                           className="px-4.5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-black uppercase rounded-lg shadow-md duration-150 cursor-pointer flex items-center gap-1.5"
                         >
                           <Printer className="w-4 h-4" />
@@ -755,7 +954,7 @@ export default function CallerPanel({
                 {generatedPrintCards.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => window.print()}
+                    onClick={handlePrint}
                     className="px-6 py-3 bg-white hover:bg-slate-100 text-indigo-950 rounded-2xl text-xs font-black tracking-wider uppercase shadow-xl transition flex items-center gap-1.5 cursor-pointer"
                   >
                     <Printer className="w-4 h-4 text-indigo-950" />
